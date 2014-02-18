@@ -45,7 +45,7 @@ neuron/rxd/gui.py \
 neuron/rxd/rangevar.py \
 neuron/rxd/dimension3.py \
 neuron/rxd/geometry3d/*.* \
-neuron/rxd/sbml/*.* \
+neuron/rxd/sbml/* \
 \
 neuron/help_data.dat
 
