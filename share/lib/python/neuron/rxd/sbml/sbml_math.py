@@ -16,6 +16,9 @@ from matplotlib import pyplot
 import shlex
 
 
+# TODO: these probably need replaced with things from rxdmath
+
+
 def power_safe(a, b):
 	try:
 		return float(a) ** float(b)
