@@ -45,7 +45,11 @@ neuron/rxd/gui.py \
 neuron/rxd/rangevar.py \
 neuron/rxd/dimension3.py \
 neuron/rxd/geometry3d/*.* \
-neuron/rxd/sbml/* \
+neuron/rxd/sbml/__init__.py \
+neuron/rxd/sbml/sbml_lists.py \
+neuron/rxd/sbml/sbml_math.py \
+neuron/rxd/sbml/sbmlToRxd.py \
+neuron/rxd/sbml/shared_vars.py \
 \
 neuron/help_data.dat
 
