@@ -45,7 +45,7 @@ def	getCompartment(listItem):
 	compartments[theId] = listItem.getSize()
 	globals()[theId] = compartments[theId]
 
-	rxd_compartments[theId] = "rxd.Region(h.allsec())"
+	rxd_compartments[theId] = "rxd.Region(h.allsec(), nrn_region='i' )"
 
 
 
@@ -73,7 +73,7 @@ def getSpecies(listItem):
 
 	initialAmount_in_molar = initial*scaling_value  
 	initialAmount_in_str = "%g" % initialAmount_in_molar
-	rxd_species[listItem.getId()] = "rxd.Species("+listItem.getCompartment()+", d=1, initial=float("+str(initialAmount_in_str)+"))"
+	rxd_species[listItem.getId()] = "rxd.Species("+listItem.getCompartment()+", d=1, initial=float("+str(initialAmount_in_str)+"), name='"+str(listItem.getId())+"')"
 
 
 
