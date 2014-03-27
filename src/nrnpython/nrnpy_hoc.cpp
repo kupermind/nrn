@@ -890,7 +890,7 @@ static PyObject* hocobj_getattr(PyObject* subself, PyObject* name) {
 	case VAR: // double*
 		if (!ISARRAY(sym)) {
 			if (sym->subtype == USERINT) {
-				Py_BuildValue("i", *(sym->u.pvalint));
+				result = Py_BuildValue("i", *(sym->u.pvalint));
 				break;
 			}
 			if (sym->subtype == USERPROPERTY) {
@@ -1078,8 +1078,12 @@ static int hocobj_setattro(PyObject* subself, PyObject* name, PyObject* value) {
 			err = -1;
 		}else{
 			hoc_pushs(sym);
-			hoc_evalpointer();
-			err = PyArg_Parse(value, "d", hoc_pxpop()) != 1;
+			if (sym->subtype == USERINT) {
+				err = PyArg_Parse(value, "i", sym->u.pvalint) != 1;
+			}else{
+				hoc_evalpointer();
+				err = PyArg_Parse(value, "d", hoc_pxpop()) != 1;
+			}
 		}
 		break;
 	case STRING: // char*
@@ -1611,12 +1615,12 @@ PyObject* nrn_ptr_richcmp(void* self_ptr, void* other_ptr, int op) {
 
 // TODO: unfortunately, this duplicates code from hocobj_same; consolidate?
 static PyObject* hocobj_richcmp(PyHocObject* self, PyObject* other, int op) {
+	void* self_ptr = (void*)(self->ho_);
+	void* other_ptr = (void*)other;
 	if (PyObject_TypeCheck(other, hocobject_type)){
-	    void* self_ptr = (void*)(self->ho_);
-	    void* other_ptr = (void*)(((PyHocObject*)other)->ho_);
-	    return nrn_ptr_richcmp(self_ptr, other_ptr, op);
+	    other_ptr = (void*)(((PyHocObject*)other)->ho_);
 	}
-	Py_RETURN_FALSE;
+	return nrn_ptr_richcmp(self_ptr, other_ptr, op);
 }
 
 static PyObject* hocobj_same(PyHocObject* pself, PyObject* args) {
@@ -1738,6 +1742,7 @@ static IvocVect* nrnpy_vec_from_python(void* v) {
 static PyObject* (*vec_as_numpy)(int, double*);
 int nrnpy_set_vec_as_numpy(PyObject*(*p)(int, double*)) {
 	vec_as_numpy = p;
+	return 0;
 }
 
 static Object** vec_as_numpy_helper(int size, double* data) {
@@ -1891,6 +1896,7 @@ myPyMODINIT_FUNC nrnpy_hoc() {
 	nrnpy_vec_from_python_p_ = nrnpy_vec_from_python;
 	nrnpy_vec_to_python_p_ = nrnpy_vec_to_python;
 	nrnpy_vec_as_numpy_helper_ = vec_as_numpy_helper;
+	PyGILState_STATE pgs = PyGILState_Ensure();
 #if PY_MAJOR_VERSION >= 3
 	PyObject* modules = PyImport_GetModuleDict();
 	if ((m = PyDict_GetItemString(modules, "hoc")) != NULL &&
@@ -1957,11 +1963,14 @@ myPyMODINIT_FUNC nrnpy_hoc() {
 #if PY_MAJOR_VERSION >= 3
 	assert(PyDict_SetItemString(modules, "hoc", m) == 0);
 	Py_DECREF(m);
+	PyGILState_Release(pgs);
 	return m;
     fail:
+	PyGILState_Release(pgs);
 	return NULL;
 #else
     fail:
+	PyGILState_Release(pgs);
 	return;
 #endif
 }

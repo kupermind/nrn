@@ -52,14 +52,13 @@ class Section1D(rxdsection.RxDSection):
         self._offset = node._allocate(sec.nseg + 1)
         self._nseg = sec.nseg
         self._region = r
+        node._diffs[self._offset : self._offset + self.nseg] = self._diff
     
     def _update_node_data(self):
         volumes, surface_area, diffs = node._get_data()
         geo = self._region._geometry
         volumes[self._offset : self._offset + self.nseg] = geo.volumes1d(self)
         surface_area[self._offset : self._offset + self.nseg] = geo.surface_areas1d(self)
-        # TODO: if diffs changed locally, this will overwrite them; fix
-        diffs[self._offset : self._offset + self.nseg] = self._diff
         self._neighbor_areas = geo.neighbor_areas1d(self)
         
 
@@ -194,8 +193,9 @@ class Section1D(rxdsection.RxDSection):
             root_children[local_root].append(self)
         else:
             # TODO: this is inefficient since checking the list twice for _region, parent_sec combo
+            #       but doesn't matter much since only done at setup
             parent_section = self.species._region_section(self._region, parent_sec)
-            self._parent = (parent_section, int(parent_section.nseg * morphology.parent_loc(self._sec, parent_section)))
+            self._parent = (parent_section, int(parent_sec.nseg * morphology.parent_loc(self._sec, parent_sec)))
         #print 'parent:', self._parent
         return root_id
 

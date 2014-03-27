@@ -1,21 +1,40 @@
 import neuron
-from neuron import h, nrn
+from neuron import h, nrn, hoc
 import rxd
 import region
 import rxdsection
 import numpy
 import weakref
 from .rxdException import RxDException
+import warnings
 
 # data storage
 _volumes = numpy.array([])
 _surface_area = numpy.array([])
 _diffs = numpy.array([])
 _states = numpy.array([])
+_node_fluxes = {'indices': [], 'type': [], 'source': [], 'scale': []}
+_has_node_fluxes = False
 
 # node data types
 _concentration_node = 0
 _molecule_node = 1
+
+def _apply_node_fluxes(dy):
+    # TODO: what if the nodes go away because a section is destroyed?
+    if _has_node_fluxes:
+        # TODO: be smarter. Use PtrVector when possible. Handle constants efficiently.
+        for index, t, source, scale in zip(_node_fluxes['indices'], _node_fluxes['type'], _node_fluxes['source'], _node_fluxes['scale']):
+            if t == 1:
+                delta = source[0]
+            elif t == 2:
+                delta = source()
+            elif t == 3:
+                delta = source
+            else:
+                raise RxDException('Unknown flux source type. Users should never see this.')
+            # TODO: check this... make sure scale shouldn't be divided by volume
+            dy[index] += delta / scale / _volumes[index]
 
 def _get_data():
     return (_volumes, _surface_area, _diffs)
@@ -163,6 +182,104 @@ class Node(object):
     def _ref_value(self):
         """Returns a HOC reference to the Node's value"""
         return _numpy_element_ref(_states, self._index)
+    
+    def include_flux(self, *args, **kwargs):
+        """Include a flux contribution to a specific node.
+        
+        The flux can be described as a HOC reference, a point process and a
+        property, a Python function, or something that evaluates to a constant
+        Python float.
+        
+        Supported units:
+            molecule/ms
+            mol/ms
+            mmol/ms == millimol/ms == mol/s
+        
+        Examples:        
+            node.include_flux(mglur, 'ip3flux')           # default units: molecule/ms
+            node.include_flux(mglur, 'ip3flux', units='mol/ms') # units: moles/ms
+            node.include_flux(mglur._ref_ip3flux, units='molecule/ms')
+            node.include_flux(lambda: mglur.ip3flux)
+            node.include_flux(lambda: math.sin(h.t))
+            node.include_flux(47)
+        
+        Warning:
+            Flux denotes a change in *mass* not a change in concentration.
+            For example, a metabotropic synapse produces a certain amount of
+            substance when activated. The corresponding effect on the node's
+            concentration depends on the volume of the node. (This scaling is
+            handled automatically by NEURON's rxd module.)
+        """
+        global _has_node_fluxes
+        if len(args) not in (1, 2):
+            raise RxDException('node.include_flux takes only one or two arguments')
+        if 'units' in kwargs:
+            units = kwargs.pop('units')
+        else:
+            units = 'molecule/ms'
+        if len(kwargs):
+            raise RxDException('Unknown keyword arguments: %r' % kwargs.keys())
+        # take the value, divide by scale to get mM um^3
+        # once this is done, we need to divide by volume to get mM
+        # TODO: is division still slower than multiplication? Switch to mult.
+        if units == 'molecule/ms':
+            scale = 602214.129
+        elif units == 'mol/ms':
+            # You have: mol
+            # You want: (millimol/L) * um^3
+            #    * 1e+18
+            #    / 1e-18
+            scale = 1e-18
+        elif units in ('mmol/ms', 'millimol/ms', 'mol/s'):
+            # You have: millimol
+            # You want: (millimol/L)*um^3
+            #    * 1e+15
+            #    / 1e-15
+            scale = 1e-15
+        else:
+            raise RxDException('unknown unit: %r' % units)
+        
+        if len(args) == 1 and isinstance(args[0], hoc.HocObject):
+            source = args[0]
+            flux_type = 1
+            try:
+                # just a test access
+                source[0]
+            except:
+                raise RxDException('HocObject must be a pointer')
+        elif len(args) == 1 and callable(args[0]):
+            flux_type = 2
+            source = args[0]
+        elif len(args) == 2:
+            flux_type = 1
+            try:
+                source = args[0].__getattribute__('_ref_' + args[1])
+            except:
+                raise RxDException('Invalid two parameter form')
+            
+            # TODO: figure out a units checking solution that works
+            # source_units = h.units(source)
+            # if source_units and source_units != units:
+            #    warnings.warn('Possible units conflict. NEURON says %r, but specified as %r.' % (source_units, units))
+        else:
+            success = False
+            if len(args) == 1:
+                try:
+                    f = float(args[0])
+                    source = f
+                    flux_type = 3
+                    success = True
+                except:
+                    pass
+            if not success:
+                raise RxDException('unsupported flux form')
+        
+        _node_fluxes['indices'].append(self._index)
+        _node_fluxes['type'].append(flux_type)
+        _node_fluxes['source'].append(source)
+        _node_fluxes['scale'].append(scale)
+        _has_node_fluxes = True
+        
     
 _h_n3d = h.n3d
 _h_x3d = h.x3d

@@ -247,7 +247,7 @@ hoc_stkobj_unref(o) Object* o; {
 
 /* check the args of the frame and unref any of type OBJECTTMP */
 
-static frameobj_clean(f) Frame* f; {
+static void frameobj_clean(f) Frame* f; {
 	Datum* s;
 	int i, narg;
 	if (f->nargs == 0) {
@@ -578,7 +578,7 @@ pushx(d)		/* push double onto stack */
 	(stackp++)->i = NUMBER;
 }
 
-hoc_pushobj(d)		/* push pointer to object pointer onto stack */
+void hoc_pushobj(d)		/* push pointer to object pointer onto stack */
 	Object **d;
 {
 	STACKCHK
@@ -608,7 +608,7 @@ hoc_pushstr(d)		/* push pointer to string pointer onto stack */
 	(stackp++)->i = STRING;
 }
 
-hoc_push_string() {	/* code for pushing a symbols string */
+void hoc_push_string() {	/* code for pushing a symbols string */
 	Objectdata* odsav;
 	Object* obsav = 0;
 	Symlist* slsav;
@@ -1260,11 +1260,7 @@ frame_debug()	/* print the call sequence on an execerror */
 	}
 	for (i=5, f=fp; f != frame && --i; f=f-1) { /* print only to depth of 5 */
 		for (j=i; j; j--) {
-#ifdef WIN32
-			printf("  ");
-#else
 			IGNORE(fputs("  ",stderr));
-#endif
 		}
 		if (f->ob) {
 			Fprintf(stderr, "%s%s.%s(", id, hoc_object_name(f->ob), f->sp->name);
@@ -1277,7 +1273,14 @@ frame_debug()	/* print the call sequence on an execerror */
 			Fprintf(stderr, "%g", f->argn[(j - f->nargs)*2].val);
 			break;
 		   case STRING:
-		   	Fprintf(stderr, "\"%s\"", *f->argn[(j - f->nargs)*2].pstr);
+			{
+			char* s = *f->argn[(j - f->nargs)*2].pstr;
+			if(strlen(s) > 15) {
+			   	Fprintf(stderr, "\"%.10s...\"", s);
+			}else{
+			   	Fprintf(stderr, "\"%s\"", s);
+			}
+			}
 			break;
 		   case OBJECTVAR:
 Fprintf(stderr, "%s", hoc_object_name(*f->argn[(j - f->nargs)*2].pobj));
@@ -1287,18 +1290,10 @@ Fprintf(stderr, "%s", hoc_object_name(*f->argn[(j - f->nargs)*2].pobj));
 		   	break;
 		   }
 			if (++j <= f->nargs) {
-#ifdef WIN32
-				printf(", ");
-#else
-				IGNORE(fputs(", ", stderr));
-#endif
+				fprintf(stderr, ", ");
 			}
 		}
-#ifdef WIN32
-		printf(")\n");
-#else
 		IGNORE(fputs(")\n", stderr));
-#endif
 	}
 	if (i <= 0) {
 		Fprintf(stderr, "and others\n");
